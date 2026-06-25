@@ -10,7 +10,9 @@
 import * as THREE from 'three';
 import URDFLoader from '../vendor/URDFLoader.js';
 
-const ROBOT_ROOT = '../assets/robot/10000111A01/10000111A01';
+// 资源路径锚定到本模块位置（import.meta.url），无论站点在域名根还是子目录(/AWRdemo/)都正确。
+// 注意：fetch 的相对路径是相对“网页地址”而非 js 文件，用 '../assets' 在子目录部署会丢一级而 404。
+const ROBOT_ROOT = new URL('../assets/robot/10000111A01/10000111A01', import.meta.url).href;
 const URDF_PATH = ROBOT_ROOT + '/urdf/10000111A01.urdf';
 
 const LIFT = { min: 0.006, max: 0.286 };
