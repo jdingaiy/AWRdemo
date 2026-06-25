@@ -1,0 +1,1648 @@
+/* =====================================================================
+   AWR 遥操作屏幕 —— 还原 Figma node 399:3732（画布 1196 × 836）
+   坐标全部相对屏幕左上角，与设计稿一一对应。
+   ===================================================================== */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --font: "MiSans", "PingFang SC", "Microsoft YaHei", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --txt: rgba(255, 255, 255, 0.85);
+}
+
+/* Google Material Symbols（本地字体，局域网/离线均可用） */
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  src: url('../assets/material-symbols.woff2') format('woff2');
+}
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+}
+.material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+html, body {
+  height: 100%;
+  background: #050608;
+  font-family: var(--font);
+  color: var(--txt);
+  -webkit-user-select: none;
+  user-select: none;
+  overflow: hidden;
+}
+
+/* 视口：舞台从左上角铺满并按高度整体缩放（宽度由 JS 设为弹性，见 fitStage） */
+#viewport {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+#stage {
+  position: absolute;
+  left: 0; top: 0;
+  width: 1195px;
+  height: 819px;
+  transform-origin: top left;
+  overflow: hidden;
+  border-radius: 2px;
+  /* 背景：径向渐变（深空感）+ 两道极淡的高光 */
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0) 40%),
+    radial-gradient(120% 90% at 50% 18%, #2a2f38 0%, #14171c 52%, #050608 100%);
+}
+
+/* ---------- 背景场景层 ---------- */
+.bg-grid {
+  /* 由 3D 场景内的网格地面替代，隐藏原 PNG 网格 */
+  display: none;
+}
+.bg-board {
+  display: none;   /* 暂时隐藏背景蓝色板子 */
+}
+.bg-robot {
+  position: absolute;
+  /* 3D 视图铺满整个 stage（宽度随画布弹性伸缩），机器人在场景内居中定位 */
+  left: 0; top: 0; width: 100%; height: 100%;
+  z-index: 0;             /* 最底背景层；UI 控件按 DOM 顺序天然在其上 */
+  pointer-events: auto;   /* 空白区域可拖拽小幅转视角；UI 控件在更高层仍可点击 */
+}
+.bg-robot canvas { display: block; width: 100%; height: 100%; }
+
+/* ---------- 顶部状态/操作栏 ---------- */
+.topbar {
+  position: absolute;
+  left: 22px; right: 113px; top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+}
+.topbar .group { display: flex; align-items: center; gap: 8px; }
+.topbar-dropdown { display: none; }
+.topbar .group.right { gap: 24px; }
+.topbar .cluster { display: flex; align-items: center; gap: 8px; }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  background: rgba(51, 51, 51, 0.55);
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.pill:hover { background: rgba(70, 70, 70, 0.6); }
+.pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--status-green); }
+.pill svg { width: 14px; height: 14px; stroke: rgba(255,255,255,0.85); fill: none; }
+.pill .material-symbols-outlined { font-size: 15px; color: rgba(255,255,255,0.85); }
+
+/* ---------- 相机画中画 16:9 ---------- */
+.camera {
+  position: absolute;
+  left: 22px; top: 83px;
+  width: 318px; height: 179px;
+  border-radius: 13px;
+  border: 0.8px solid rgba(255, 255, 255, 0.4);
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  cursor: grab;
+  touch-action: none;            /* 拖动时禁止浏览器手势 */
+}
+.camera.dragging {
+  cursor: grabbing;
+  box-shadow: 0 16px 44px rgba(0,0,0,0.6);
+}
+/* 松手吸附时的过渡（拖动中由 JS 关闭过渡，跟手；松手再开启） */
+.camera.snapping { transition: left .28s cubic-bezier(.22,1,.36,1), top .28s cubic-bezier(.22,1,.36,1); }
+.camera img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.camera .close {
+  position: absolute;
+  top: 13px; right: 13px;
+  width: 19px; height: 19px;
+  border-radius: 50%;
+  background: rgba(248, 248, 249, 0.85);
+  display: grid; place-items: center;
+  cursor: pointer;
+}
+.camera .close svg { width: 9px; height: 9px; stroke: #0f0f0f; stroke-width: 1.6; }
+.camera .close .material-symbols-outlined { font-size: 14px; color: #0f0f0f; }
+
+/* ---------- 右侧竖排：急停 / 手柄 ---------- */
+.right-rail {
+  position: absolute;
+  right: 18px; top: 20px;
+  display: flex; flex-direction: column; gap: var(--rail-stack-gap);
+}
+.rail-btn {
+  width: var(--rail-size); height: var(--rail-size);
+  border-radius: var(--rail-radius);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: var(--rail-gap);
+  font-size: var(--rail-font); color: #fff;
+  cursor: pointer;
+}
+.rail-btn svg { width: var(--rail-icon); height: var(--rail-icon); }
+.rail-btn .material-symbols-outlined { font-size: var(--rail-icon); }
+.rail-btn.estop .material-symbols-outlined { color: #fff; }
+.rail-btn.handle .material-symbols-outlined { color: var(--text-2); }
+.rail-btn.estop { background: var(--estop-red); }
+.rail-btn.estop:active { background: var(--estop-red-press); }
+.rail-btn.handle {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  color: var(--text-2);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+}
+/* 选中态/点击态底色：整个按钮（无内边距） */
+.rail-btn.handle.active { background: var(--sel-soft); }
+.rail-btn.handle:active { background: var(--press-soft); }
+
+/* ---------- 手柄关闭后：展开的工具栏（平板=右栏竖排，紧贴急停/手柄下方） ---------- */
+.rail-tools { position: absolute; right: 18px; top: 182px; display: none; flex-direction: column; gap: var(--rail-stack-gap); z-index: 8; }
+#stage.handle-off .rail-tools { display: flex; }
+
+.rail-group {
+  width: var(--rail-size);                 /* 外框 = 按钮宽，保证整列对齐 */
+  border-radius: var(--rail-radius);
+  background: var(--glass-fill-soft);
+  border: 1px solid var(--glass-border);
+  display: flex; flex-direction: column;
+  padding: 0;
+}
+.rail-group.system { background: var(--glass-fill); }
+
+.rail-btn.tool {
+  width: 100%; aspect-ratio: 1;            /* 填满分组内宽，正方形 */
+  border-radius: var(--rail-tool-radius);
+  gap: var(--rail-gap); font-size: var(--rail-tool-font);
+  color: var(--text-2);
+  background: transparent; border: none;
+  position: relative; isolation: isolate;
+}
+.rail-btn.tool .material-symbols-outlined { font-size: var(--rail-icon); color: var(--text-2); }
+.rail-btn.tool.active { color: #fff; }
+/* 选中态/点击态底色：距按钮区域上下左右各 4px 的方形块（直角） */
+.rail-btn.tool.active::before,
+.rail-btn.tool:not(.disabled):active::before {
+  content: ""; position: absolute; inset: 4px;
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 0; z-index: -1;
+}
+.rail-btn.tool:not(.disabled):active::before { background: rgba(255, 255, 255, 0.06); }
+.rail-btn.tool.active .material-symbols-outlined { color: #fff; }
+.rail-btn.tool.disabled { color: rgba(145, 145, 145, 1); cursor: default; }
+.rail-btn.tool.disabled .material-symbols-outlined { color: rgba(126, 125, 128, 1); }
+
+/* 手柄关闭后隐藏摇杆控制区 */
+#stage.handle-off #mode-panels,
+#stage.handle-off .mode-selector,
+#stage.handle-off .reset,
+#stage.handle-off .mode-data,
+#stage.handle-off .hud { display: none; }
+
+/* ===========================================================
+   手柄关闭后的侧边控制面板（Job / 标定 / 反馈）
+   =========================================================== */
+.side-panel {
+  position: absolute; top: 20px;
+  display: none; flex-direction: column;
+  max-height: calc(100% - 40px);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 16px;
+  -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
+  color: #fff; z-index: 12;
+  font-size: 13px;
+}
+.side-panel.active { display: flex; animation: panel-pop .26s cubic-bezier(.22, 1, .36, 1); }
+/* 弹出动画：从右侧轻微滑入 + 淡入（面板由右栏/右边缘弹出） */
+@keyframes panel-pop {
+  from { opacity: 0; transform: translateX(24px) scale(.98); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+#panel-job { right: 105px; width: 234px; height: 760px; }
+#panel-calib { right: 106px; width: 227px; height: 760px; }
+#panel-feedback { right: 106px; width: 227px; height: 294px; }
+
+/* 面板头部 */
+.sp-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 24px 15px 0;
+}
+.sp-title { font-size: 16px; font-weight: 500; color: rgba(255, 255, 255, 0.85); }
+.sp-close {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(243, 243, 244, 0.15);
+  display: grid; place-items: center; cursor: pointer;
+}
+.sp-close .material-symbols-outlined { font-size: 15px; color: #fff; }
+.sp-body { padding: 20px 15px 0; display: flex; flex-direction: column; overflow-y: auto; flex: 1; }
+
+/* ---- Job 面板 ---- */
+.sp-sub { font-size: 16px; font-weight: 500; color: #fff; }
+.field {
+  margin-top: 19px; height: 32px; border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.60);
+  display: flex; align-items: center; padding: 0 10px;
+  font-size: 11px; color: rgba(145, 145, 145, 1);
+}
+.record-box {
+  margin-top: 42px; flex: 1; border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.60);
+  padding: 9px;
+}
+.record-head { display: flex; align-items: center; gap: 4px; font-size: 13px; color: #fff; }
+.record-head .chev { font-size: 16px; }
+
+.job-foot { padding: 16px 15px; display: flex; flex-direction: column; gap: 8px; }
+.seg-line { display: flex; gap: 8px; }
+.seg-line .seg-pill:first-child { width: 128px; }
+.seg-line .seg-pill.solo { flex: 1; }
+.seg-pill {
+  background: #404040; border-radius: 15px; padding: 5px;
+  display: flex;
+}
+.seg-pill .seg {
+  flex: 1; text-align: center; padding: 9px 6px;
+  font-size: 11px; color: #ededed; background: #131418;
+  cursor: pointer;
+}
+.seg-pill .seg.dim { color: #939393; }
+.seg-pill .seg:first-child { border-radius: 10px 0 0 10px; }
+.seg-pill .seg:last-child { border-radius: 0 10px 10px 0; }
+.seg-pill .seg:only-child { border-radius: 10px; }
+.seg-pill .seg + .seg { border-left: 1px solid rgba(232, 232, 232, 0.25); }
+
+/* 手机端 Job 右栏竖排按钮（默认隐藏，仅手机 @media 显示） */
+.job-foot-m { display: none; }
+.jbtn {
+  height: 53px; border-radius: 999px;
+  background: rgba(0, 80, 181, 1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; color: rgba(243, 243, 244, 1); cursor: pointer;
+}
+.jbtn.grey { background: rgba(255, 255, 255, 0.15); color: #fff; }
+
+/* ---- 标定 面板 ---- */
+.sp-body.calib { padding: 18px 15px 15px; gap: 0; }
+.calib-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; font-size: 13px; color: #fff; cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.20);
+}
+.calib-row .chev { font-size: 21px; color: #fff; transition: transform .2s ease; }
+.calib-row .chev.up { transform: rotate(180deg); }
+.calib-group { border-bottom: 1px solid rgba(255, 255, 255, 0.20); }
+.calib-group .group-head { border-bottom: none; }
+.calib-group-body { display: none; padding-bottom: 12px; }
+.calib-group.open .calib-group-body { display: block; }
+
+.hand-card {
+  background: rgba(45, 46, 52, 1);
+  border-radius: 7px; padding: 9px 8px; margin-top: 9px;
+}
+.hand-head { display: flex; align-items: center; justify-content: space-between; }
+.hand-name { font-size: 12px; color: #fff; }
+.hand-btns { display: flex; gap: 9px; }
+.mini-btn {
+  height: 21px; padding: 0 9px; border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 1);
+  display: inline-flex; align-items: center;
+  font-size: 9px; color: #fff; cursor: pointer;
+}
+.hand-divider { height: 1px; background: rgba(255, 255, 255, 0.20); margin: 9px 0; }
+.pt-toggle {
+  display: flex; align-items: center; justify-content: center; gap: 2px;
+  font-size: 9px; color: rgba(189, 189, 189, 1); cursor: pointer;
+}
+.pt-toggle .material-symbols-outlined { font-size: 12px; }
+.pt-toggle.collapse { border-top: 1px solid rgba(255, 255, 255, 0.20); padding-top: 9px; margin-top: 9px; }
+.pt-toggle.expand { display: none; }
+.hand-card.collapsed .pt-list,
+.hand-card.collapsed .pt-toggle.collapse { display: none; }
+.hand-card.collapsed .pt-toggle.expand { display: flex; }
+.pt-list { display: flex; flex-direction: column; gap: 9px; }
+.pt-item {
+  height: 33px; border-radius: 7px;
+  background: rgba(255, 255, 255, 0.10);
+  display: flex; align-items: center; padding: 0 9px;
+  font-size: 10px; color: rgba(255, 255, 255, 0.80);
+}
+.pt-row { display: flex; gap: 9px; }
+.pt-btn {
+  height: 34px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: rgba(243, 243, 244, 1); cursor: pointer;
+}
+.pt-row .pt-btn { flex: 1; }
+.pt-btn.blue { background: rgba(0, 80, 181, 1); }
+.pt-btn.grey { background: rgba(255, 255, 255, 0.15); color: #fff; }
+
+/* ---- 反馈 面板 ---- */
+.fb-label { font-size: 12px; color: #fff; margin-bottom: 13px; }
+.fb-types { display: flex; gap: 12px; margin-bottom: 16px; }
+.fb-type {
+  width: 58px; height: 21px; border-radius: 999px;
+  background: rgba(45, 46, 52, 1);
+  border: 1px solid transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; color: #fff; cursor: pointer;
+}
+.fb-type.active { background: rgba(0, 80, 181, 0.50); border-color: rgba(0, 80, 181, 1); }
+.fb-textarea {
+  position: relative; height: 69px; border-radius: 6px;
+  background: rgba(45, 46, 52, 1); padding: 8px;
+}
+.fb-placeholder { font-size: 12px; color: rgba(145, 145, 145, 1); }
+.fb-mic {
+  position: absolute; right: 9px; bottom: 9px;
+  width: 21px; height: 21px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  display: grid; place-items: center; cursor: pointer;
+}
+.fb-mic .material-symbols-outlined { font-size: 14px; color: #fff; }
+.fb-submit {
+  margin-top: 21px; height: 32px; border-radius: 999px;
+  background: rgba(0, 80, 181, 1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: #fff; cursor: pointer;
+}
+
+/* ===========================================================
+   虚拟摇杆组件（基础样式，供 AWR 皮肤复用）
+   =========================================================== */
+.vj {
+  --vj-hotzone: 229px; --vj-base: 159px; --vj-thumb: 56px;
+  --vj-travel: 103px;  --vj-dead: 10.3px;
+  position: relative;
+  width: var(--vj-hotzone); height: var(--vj-hotzone);
+  display: grid; place-items: center;
+  touch-action: none;
+}
+.vj__hotzone {
+  position: absolute; width: var(--vj-hotzone); height: var(--vj-hotzone);
+  border-radius: 50%; border: 1px dashed transparent;
+}
+.vj__base {
+  position: absolute; left: 50%; top: 50%;
+  width: var(--vj-base); height: var(--vj-base);
+  border-radius: 50%; transform: translate(-50%, -50%);
+}
+.vj--releasing .vj__base { transition: transform .42s cubic-bezier(.34,1.56,.64,1); }
+.vj__crosshair { position: absolute; inset: 0; display: none; }
+.vj__travel {
+  position: absolute; left: 50%; top: 50%;
+  width: var(--vj-travel); height: var(--vj-travel);
+  border-radius: 50%; transform: translate(-50%, -50%);
+  border: 1px dashed transparent;
+}
+.vj--show-travel .vj__travel { border-color: rgba(255,255,255,0.28); }
+.vj__deadzone {
+  position: absolute; left: 50%; top: 50%;
+  width: var(--vj-dead); height: var(--vj-dead);
+  border-radius: 50%; transform: translate(-50%, -50%);
+}
+.vj--show-deadzone .vj__deadzone { background: rgba(255,77,79,0.85); }
+.vj__thumb {
+  position: absolute; left: 50%; top: 50%;
+  width: var(--vj-thumb); height: var(--vj-thumb);
+  border-radius: 50%; transform: translate(-50%, -50%);
+  display: grid; place-items: center;
+  cursor: grab;
+}
+.vj--active .vj__thumb { cursor: grabbing; }
+.vj--releasing .vj__thumb { transition: transform .42s cubic-bezier(.34,1.56,.64,1); }
+.vj__thumb-label { display: none; font-size: 12px; color: var(--txt); letter-spacing: .5px; }
+.vj__chevrons { position: absolute; inset: 0; pointer-events: none; }
+.vj__chev { position: absolute; left: 50%; top: 50%; font-size: 11px; }
+.vj__chev--up    { transform: translate(-50%, calc(var(--vj-hotzone) / -2 + 6px)); }
+.vj__chev--down  { transform: translate(-50%, calc(var(--vj-hotzone) /  2 - 18px)); }
+.vj__chev--left  { transform: translate(calc(var(--vj-hotzone) / -2 + 6px), -50%); }
+.vj__chev--right { transform: translate(calc(var(--vj-hotzone) /  2 - 18px), -50%); }
+.vj__label { display: none; }
+/* 静态装饰层（AWR：弧+箭头环），居中铺满热区 */
+.vj__ornament {
+  position: absolute; left: 50%; top: 50%;
+  width: var(--vj-hotzone); height: var(--vj-hotzone);
+  transform: translate(-50%, -50%);
+  pointer-events: none; display: none;
+}
+
+/* ---------- AWR 皮肤：还原设计稿的 Move 摇杆 ---------- */
+/* VirtualJoystick 的外层 .vj 由 JS 插入到 #move-mount 内，
+   #move-mount 本身已定位到 Figma 坐标 (76, 548) */
+.vj--skin-awr {
+  position: relative; /* 在 move-mount 内流式布局 */
+}
+.vj--skin-awr .vj__hotzone { border: none; }      /* 环由 ornament 绘制 */
+.vj--skin-awr .vj__chevrons { display: none; }     /* 不用 unicode 箭头 */
+/* 箭头弧环铺满整体 159.2 */
+.vj--skin-awr .vj__ornament { display: block; width: var(--vj-hotzone); height: var(--vj-hotzone); }
+/* 底座：159.2 极淡玻璃盘（边界由弧环呈现，不另画整圈描边） */
+.vj--skin-awr .vj__base {
+  background: radial-gradient(circle at 50% 42%, rgba(255,255,255,0.05), rgba(255,255,255,0.012) 72%);
+  border: none;
+}
+.vj--skin-awr .vj__crosshair { display: none; }
+/* 行程圆已放大到 164，不再用它当光晕（光晕改为跟随舵柄，见下方 box-shadow） */
+.vj--skin-awr .vj__travel { border: none; background: transparent; }
+.vj--skin-awr .vj__thumb-label {
+  display: block; font-size: 12px; font-weight: 500;
+  color: rgba(255, 255, 255, 0.85); letter-spacing: .2px;
+}
+
+/* 圆形按钮通用样式（Move / Rotate / Z / 复位）：还原设计稿 412:469
+   —— 纯色 rgba(255,255,255,0.45) + 磨砂玻璃（背景模糊）。 */
+.knob,
+.vj--skin-awr .vj__thumb {
+  background: rgba(255, 255, 255, 0.45);
+  -webkit-backdrop-filter: blur(4px) saturate(1.3);
+  backdrop-filter: blur(4px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.30),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.10),
+    0 6px 18px rgba(0, 0, 0, 0.40);
+}
+
+/* Move 按下：柔和外发光（不要描边环） */
+.vj--skin-awr.vj--active .vj__thumb {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.7),
+    0 0 16px 3px rgba(255, 255, 255, 0.6),
+    0 0 38px 10px rgba(150, 190, 255, 0.45),
+    0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+/* ===========================================================
+   弧形控件挂载
+   =========================================================== */
+.arc-mount {
+  position: absolute;
+  touch-action: none;
+}
+/* 水平弧（旋转/开合）：204×163 */
+.arc-mount:not([data-axis="v"]) { width: 204px; height: 163px; }
+/* 竖向弧（俯仰/Z/Rz）：150×150 */
+.arc-mount[data-axis="v"]       { width: 150px; height: 150px; }
+
+/* Move 摇杆挂载点（Figma: left=76, top=548, 159.2×159.2） */
+#move-mount {
+  position: absolute;
+  left: 76px; top: calc(100% - 271px);
+  width: 160px; height: 160px;
+  overflow: visible;
+  touch-action: none;
+}
+
+/* ===== 各弧形控件精确定位（Figma Dev Mode 坐标）===== */
+
+/* 底盘旋转弧、腰部旋转弧（右下角锚定底部；Figma w=204, h=163）*/
+#arc-chassis-rotate, #arc-waist-yaw { right: 42px; top: calc(100% - 237px); }
+
+/* 竖向弧：左上（腰部俯仰） */
+#arc-waist-pitch {
+  left: 121px; top: calc(100% - 285px);
+  width: 175px; height: 175px;
+}
+/* 竖向弧：左下（头部俯仰） */
+#arc-head-pitch {
+  left: 59px; top: calc(100% - 179px);
+  width: 132px; height: 132px;
+}
+/* 手臂 X/Y、Rx/Ry、夹爪开合 改用 .cross-pad / .arc-dial（见下方专属定位） */
+
+.arc-mount svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.arc-mount .arc-thumb {
+  position: absolute; left: 0; top: 0;
+  width: 56px; height: 56px; border-radius: 9999px;
+  display: grid; place-items: center;
+  font-size: 12px; color: rgba(255,255,255,0.85);
+  text-align: center; line-height: 1.15; cursor: grab; z-index: 5;
+}
+.arc-mount.dragging .arc-thumb {
+  cursor: grabbing; transform: scale(1.06);
+  background: rgba(255,255,255,0.55); border-color: rgba(255,255,255,0.6);
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.7), 0 0 16px 3px rgba(255,255,255,0.6), 0 0 36px 9px rgba(150,190,255,0.42), 0 6px 18px rgba(0,0,0,0.4);
+}
+.arc-mount .arc-thumb.springing {
+  transition: left .42s cubic-bezier(.34,1.56,.64,1), top .42s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* 步进按钮 */
+.arc-mount .arc-step {
+  position: absolute;
+  width: 24px; height: 24px; border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 2;
+  color: #fff;
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 200;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.arc-mount .arc-step:active { background: rgba(0, 0, 0, 0.4); }
+
+/* ===========================================================
+   竖向滑块（腰部升降）
+   =========================================================== */
+.vslider-mount {
+  position: absolute;
+  right: 283px; top: calc(100% - 229px);
+  width: 57px; height: 155px;
+  touch-action: none;
+}
+.vslider-mount .track {
+  position: absolute; left: 14px; top: 0; width: 30px; height: 155px;
+  border-radius: 999px; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3);
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 6px 0;
+}
+.vslider-mount .track .material-symbols-outlined { font-size: 22px; color: rgba(255,255,255,0.5); }
+.vslider-mount .vs-thumb {
+  position: absolute; left: 1px; top: 50px; width: 56px; height: 56px; border-radius: 9999px;
+  display: grid; place-items: center; font-size: 12px; color: rgba(255,255,255,0.85);
+  text-align: center; line-height: 1.15; cursor: grab;
+}
+.vslider-mount.dragging .vs-thumb {
+  cursor: grabbing; transform: scale(1.06);
+  background: rgba(255,255,255,0.55); border-color: rgba(255,255,255,0.6);
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.7), 0 0 16px 3px rgba(255,255,255,0.6), 0 0 36px 9px rgba(150,190,255,0.42), 0 6px 18px rgba(0,0,0,0.4);
+}
+.vslider-mount .vs-thumb.springing { transition: top .42s cubic-bezier(.34,1.56,.64,1); }
+.vslider-mount .vs-label { position: absolute; left: 50%; top: 162px; transform: translateX(-50%); font-size: 12px; color: var(--txt); white-space: nowrap; }
+
+/* ===========================================================
+   弧形拨盘 / 十字拨盘（手臂 Z·Rz·XY·Rxy、夹爪开合）
+   =========================================================== */
+.arc-dial, .cross-pad { position: absolute; touch-action: none; overflow: visible; }
+
+/* 定位（Figma Dev 坐标：按旋钮中心放置 200/184 盒）*/
+#dial-arm-z      { left: 94px;  top: calc(100% - 311px); }
+#dial-arm-rz     { right: 94px; top: calc(100% - 311px); }
+#dial-grip-left  { left: 109px; top: calc(100% - 300px); }
+#dial-grip-right { right: 79px; top: calc(100% - 302px); }
+#cross-arm-xy    { left: 19px;  top: calc(100% - 219px); }
+#cross-arm-rxy   { right: 19px; top: calc(100% - 219px); }
+
+.arc-dial .arc-thumb, .cross-pad .arc-thumb {
+  position: absolute; left: 0; top: 0;
+  width: 56px; height: 56px; border-radius: 9999px;
+  display: grid; place-items: center;
+  font-size: 12px; color: rgba(255,255,255,0.85);
+  text-align: center; line-height: 1.15; cursor: grab; z-index: 5;
+}
+.arc-dial.dragging .arc-thumb, .cross-pad.dragging .arc-thumb {
+  cursor: grabbing; transform: scale(1.06);
+  background: rgba(255,255,255,0.55); border-color: rgba(255,255,255,0.6);
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.7), 0 0 16px 3px rgba(255,255,255,0.6), 0 0 36px 9px rgba(150,190,255,0.42), 0 6px 18px rgba(0,0,0,0.4);
+}
+.arc-dial .arc-thumb.springing, .cross-pad .arc-thumb.springing {
+  transition: left .42s cubic-bezier(.34,1.56,.64,1), top .42s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* 端点 / 对角步进按钮 */
+.step-btn {
+  position: absolute; width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(0,0,0,0.25);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-family: var(--font); font-size: 15px; font-weight: 200; line-height: 1;
+  cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; z-index: 2;
+}
+.step-btn:active { background: rgba(0,0,0,0.4); }
+
+/* ===== 复位按钮（右侧，Z 上方）===== */
+.reset {
+  position: absolute; right: 51px; top: calc(100% - 347px); width: 56px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  cursor: pointer; z-index: 5;
+}
+.reset .circle { width: 56px; height: 56px; border-radius: 9999px; display: grid; place-items: center; }
+.reset .circle .material-symbols-outlined { font-size: 26px; color: rgba(255,255,255,0.9); }
+.reset:active .circle { background: rgba(255,255,255,0.6); }
+.reset .label { font-size: 12px; color: var(--txt); }
+
+/* ===== 模式面板容器：按模式显隐 ===== */
+#mode-panels { position: absolute; inset: 0; pointer-events: none; }
+.mode-panel { position: absolute; inset: 0; display: none; }
+.mode-panel.active { display: block; }
+.mode-panel .arm-center { pointer-events: none; }
+.mode-panel .arm-center > * { pointer-events: auto; }
+.mode-panel .arc-mount,
+.mode-panel .vslider-mount,
+.mode-panel .arc-dial,
+.mode-panel .cross-pad,
+.mode-panel #move-mount { pointer-events: auto; }
+
+/* ===== 手臂中央：左右臂 + 坐标系 段选择 + 读数 ===== */
+.arm-center { position: absolute; left: 50%; top: calc(100% - 183px); transform: translateX(-50%); display: flex; flex-direction: row; align-items: center; gap: 16px; z-index: 6; }
+.seg-toggle { display: inline-flex; align-items: center; height: 38px; background: rgba(0,0,0,0.4); border-radius: 20px; padding: 4px; }
+.seg-toggle .seg { display: grid; place-items: center; height: 30px; padding: 0 16px; border-radius: 16px; font-size: 14px; color: rgba(255,255,255,0.8); cursor: pointer; white-space: nowrap; transition: background .2s ease, color .2s ease; }
+.seg-toggle .seg.active { background: rgba(255,255,255,0.6); color: #000; font-weight: 500; }
+/* 左右滑动选择器 / 坐标系下拉：以下两件仅手机端启用，平板保持原胶囊 */
+.seg-track { display: contents; }
+.frame-btn { display: none; }
+.readout { position: absolute; top: calc(100% - 119px); font-size: 12px; color: rgba(255,255,255,0.85); font-variant-numeric: tabular-nums; line-height: 26px; z-index: 6; }
+#arm-readout-l { left: 50%; transform: translateX(-270px); text-align: left; }
+#arm-readout-r { left: 50%; transform: translateX(203px); text-align: left; }
+.readout b { color: rgba(255,255,255,0.92); font-weight: 600; }
+
+/* ===== 底部模式选择器：底盘/躯干/手臂/夸爪 ===== */
+.mode-selector { position: absolute; left: 50%; top: calc(100% - 139px); transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: 7; }
+.mode-selector .pillbox { height: 72px; border-radius: 999px; background: #000; border: 1px solid rgba(255,255,255,0.85); display: flex; align-items: center; gap: 10px; padding: 8px 12px; backdrop-filter: blur(6px); }
+.mode-selector .opt { width: 56px; height: 56px; border-radius: 9999px; background: rgba(255,255,255,0.1); -webkit-backdrop-filter: blur(4px) saturate(1.2); backdrop-filter: blur(4px) saturate(1.2); display: grid; place-items: center; cursor: pointer; overflow: hidden; transition: background .25s ease, box-shadow .25s ease; }
+.mode-selector .opt.active { background: rgba(255,255,255,0.45); box-shadow: inset 0 1px 2px rgba(255,255,255,0.4), 0 2px 10px rgba(0,0,0,0.3); }
+.mode-selector .opt img { object-fit: contain; opacity: 0.8; transition: opacity .25s ease; height: 32px; width: auto; }
+.mode-selector .opt.active img { opacity: 1; }
+@keyframes opt-pop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+.mode-selector .opt.pop { animation: opt-pop .32s ease; }
+.mode-selector .labels { width: 100%; display: flex; justify-content: space-around; font-size: 12px; color: var(--txt); }
+/* 卡尺元素：默认（平板）隐藏，仅手机端启用 */
+.wheel-picker .picker-ring { display: none; }
+.mode-selector .opt-label { display: none; }
+
+/* ===== 实时输出 HUD ===== */
+.hud { position: absolute; left: 22px; bottom: 18px; font-size: 11px; color: rgba(255,255,255,0.45); font-variant-numeric: tabular-nums; line-height: 1.7; pointer-events: none; }
+.hud b { color: rgba(255,255,255,0.8); font-weight: 600; }
+
+/* 底部居中：当前模式实时数据（底盘/躯干/夹爪；手臂模式置空，由 .readout 显示） */
+.mode-data {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+  display: flex; gap: 14px; white-space: nowrap;
+  font-size: var(--data-font); color: rgba(255,255,255,0.85); font-variant-numeric: tabular-nums;
+  z-index: 6; pointer-events: none;
+}
+.mode-data:empty { display: none; }
+.mode-data b { color: rgba(255,255,255,0.92); font-weight: 600; }
+
+/* ===========================================================
+   手机横屏布局（Figma 925:3808 手柄态 / 925:3936 手柄关闭态）
+   设计稿为原生 852×393；本 demo 的 stage 在手机端被缩放 0.75，
+   故 CSS 坐标 = 设计稿原生值 ÷ 0.75（≈ ×1.333）。
+   =========================================================== */
+#stage.landscape {
+  /* —— 顶栏：避让右上横向 rail（上 24px，左右 48px）—— */
+  .topbar { left: 48px; right: 212px; top: 24px; }
+
+  /* —— 相机画中画：上 24px，左 48px —— */
+  .camera { left: 48px; top: 90px; width: 224px; height: 127px; }
+
+  /* —— 右上 rail 改横向：上 24px，右 48px —— */
+  .right-rail {
+    flex-direction: row-reverse; right: 48px; top: 24px; gap: 11px;
+    transform: scale(calc(1 / var(--stage-scale)));
+    transform-origin: top right;
+  }
+  .rail-btn {
+    width: 48px; height: 48px; border-radius: 10px;
+    font-size: 10px; gap: 2px;
+  }
+  .rail-btn .material-symbols-outlined { font-size: 20px; }
+  .rail-btn.handle {
+    background: var(--glass-fill);
+    border: 1px solid var(--glass-border);
+    color: var(--text-2);
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
+  }
+  .rail-btn.handle .material-symbols-outlined {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .rail-btn.handle.active {
+    background: rgba(255, 255, 255, 0.10);
+    color: #fff;
+  }
+  .rail-btn.handle.active .material-symbols-outlined {
+    color: #fff;
+  }
+  .rail-btn.estop {
+    background: var(--estop-red);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+
+  /* —— 底盘：M 摇杆向内平移 41px，向上平移 6px —— */
+  #move-mount { left: 121px; top: calc(100% - 255px); }
+  #arc-chassis-rotate, #arc-waist-yaw { right: 83px; top: calc(100% - 250px); }
+
+  /* —— 躯干：升降/俯仰滑块向内平移 41px，向上平移 6px —— */
+  .vslider-mount { right: 311px; top: calc(100% - 235px); }
+  #arc-waist-pitch { left: 162px; }
+  #arc-head-pitch { left: 100px; }
+
+  /* —— 夹爪：滑动开合圆弧向内平移 41px，向上平移 6px —— */
+  #dial-grip-left { left: 101px; top: calc(100% - 306px); }
+  #dial-grip-right { right: 83px; top: calc(100% - 308px); }
+
+  /* —— 手臂：与腰部俯仰对齐 —— */
+  #dial-arm-z { left: 135px; top: calc(100% - 311px); }
+  #dial-arm-rz { right: 135px; top: calc(100% - 311px); }
+  #cross-arm-xy { left: 60px; top: calc(100% - 219px); }
+  #cross-arm-rxy { right: 60px; top: calc(100% - 219px); }
+
+  /* —— 复位：对齐手柄按钮左边界并向下移动 16px —— */
+  .reset {
+    right: 131px; top: calc(100% - 377px);
+    transform: scale(calc(1 / var(--stage-scale)));
+    transform-origin: bottom right;
+  }
+  .reset .circle.knob {
+    width: 40px; height: 40px;
+  }
+  .reset .circle.knob .material-symbols-outlined {
+    font-size: 18px;
+  }
+  .reset .label {
+    font-size: 10px;
+    margin-top: 4px;
+  }
+
+  /* —— 底部模式与数据：下 24px，左右 48px —— */
+  .hud { left: 48px; bottom: 24px; }
+  .mode-data { bottom: 24px; }
+
+  /* —— 底部模式选择器：圆心与 Z 轴等高，向上平移 6px —— */
+  /* —— 轮盘/滚轮选择器通用组件 (Wheel Picker Component) —— */
+  .wheel-picker {
+    position: absolute; top: calc(100% - 117.5px); bottom: auto;
+    width: 75px; height: 75px; min-width: 0;
+    gap: 0; overflow: visible; touch-action: none; align-items: center;
+    z-index: 7;
+    background: none; border: none; padding: 0;
+  }
+  /* 磨砂玻璃环 */
+  .wheel-picker .picker-ring {
+    display: block; position: absolute; left: 50%; top: 50%;
+    width: 75px; height: 75px; border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.40); border: 1px solid rgba(255, 255, 255, 0.60);
+    -webkit-backdrop-filter: blur(8px) saturate(1.2); backdrop-filter: blur(8px) saturate(1.2);
+    z-index: 0; pointer-events: none;
+    box-sizing: border-box;
+  }
+  /* 轨道通用样式：透明、列布局、居中 */
+  .wheel-picker .picker-track {
+    display: flex; flex-direction: column; gap: 22px;
+    position: absolute; left: 50%; margin-left: -26.5px; top: 50%; width: 53px;
+    height: auto;        /* 覆盖 .mode-selector .pillbox 的 height:72，避免 flex 压扁选项 */
+    will-change: transform;
+  }
+  /* 选项样式：53px * 53px 磨砂圆 */
+  .wheel-picker .picker-opt {
+    display: flex; align-items: center; justify-content: center;
+    flex: none;          /* 不被 flex 压缩，保持 53px 高 */
+    width: 53px; height: 53px; margin: 0; padding: 0; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.10); color: rgba(255, 255, 255, 0.80);
+    font-size: 14px; pointer-events: none;
+    overflow: visible; z-index: 1; position: relative;
+    transition: background .2s ease, opacity .2s ease, color .2s ease;
+    box-sizing: border-box;
+  }
+  .wheel-picker .picker-opt img { height: 30px; }
+  .wheel-picker .picker-opt.active {
+    background: rgba(255, 255, 255, 0.45); color: rgba(255, 255, 255, 0.95); font-weight: 500;
+  }
+
+  /* 收起态消隐：仅显示当前激活的圆形选项，其余隐藏 */
+  .wheel-picker:not(.selecting) .picker-opt:not(.active) { opacity: 0; pointer-events: none; }
+  .wheel-picker.selecting .picker-opt { opacity: 1; }
+  .wheel-picker.selecting .picker-ring { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06); }
+
+  /* 展开态：统一高度 + 固定 50px 柔和羽化（上下渐隐，不裁剪）。
+     50px 羽化比原 10%(模式27.8/手臂7.5)更柔和；统一 200 高使模式与手臂可见范围一致 */
+  .wheel-picker.selecting {
+    height: 200px;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%);
+  }
+
+  /* —— 模式选择器个性化定制：向内平移 41px —— */
+  .mode-selector {
+    left: 374px; transform: translate(-50%, -50%);
+  }
+  .mode-selector .pillbox {
+    background: none; border: none; padding: 0; align-items: center;
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+  }
+  /* 模式标签（图标右侧） */
+  .mode-selector .opt-label {
+    display: block; position: absolute; left: 62px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px; color: rgba(255, 255, 255, 0.85); white-space: nowrap;
+    transition: opacity .2s ease;
+  }
+  .mode-selector .labels { display: none; }
+  .mode-selector:not(.selecting) .opt-label { opacity: 0; }
+  .mode-selector.selecting .opt-label { opacity: 1; }
+  .mode-selector.selecting {
+    width: 180px; /* 展开以防标签裁剪（高度由通用 .wheel-picker.selecting 统一为 200） */
+  }
+
+  &[data-mode="arm"] .arm-center { position: absolute; inset: 0; left: 0; top: 0; transform: none; display: block; }
+
+  /* —— 手臂模式：左右臂选择器个性化定制：向内平移 41px —— */
+  #arm-side {
+    left: auto; right: 374px; transform: translate(50%, -50%);
+  }
+  /* 手臂选择器的轨道已通过通用 .picker-track 绝对定位居中 */
+
+  /* 坐标系下拉（Figma 1001:4949）：按钮黑底r20+磨砂；展开为单块灰底胶囊容器包两项，
+     选中项白底0.45白字、未选白字0.8（与 XYZ 舵柄同风格）*/
+  #arm-frame {
+    position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%);
+    width: auto; height: auto; min-width: 0; background: none; border: none; padding: 0; border-radius: 0;
+    display: block; z-index: 8;
+  }
+  #arm-frame .frame-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    height: 38px; padding: 0 16px; border-radius: 20px;
+    background: rgba(0,0,0,0.40); border: 1px solid rgba(255,255,255,0.15);
+    -webkit-backdrop-filter: blur(8px) saturate(1.2); backdrop-filter: blur(8px) saturate(1.2);
+    font-size: 14px; color: rgba(255,255,255,0.80); white-space: nowrap; cursor: pointer;
+  }
+  #arm-frame .frame-chev { font-size: 16px; transition: transform .2s ease; }
+  #arm-frame.open .frame-chev { transform: rotate(180deg); }
+  /* 展开浮层：单块灰底胶囊容器（伪元素绘制）+ 磨砂，浮在按钮上方 */
+  #arm-frame::before {
+    content: ""; display: none; position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: calc(100% + 4px); width: 110px; height: 72px; border-radius: 20px;
+    background: rgba(0,0,0,0.40);
+    -webkit-backdrop-filter: blur(8px) saturate(1.2); backdrop-filter: blur(8px) saturate(1.2);
+  }
+  #arm-frame.open::before { display: block; }
+  #arm-frame .seg {
+    display: none; position: absolute; left: 50%; transform: translateX(-50%);
+    width: 101px; height: 30px; padding: 0; border-radius: 9999px; white-space: nowrap;
+    align-items: center; justify-content: center; font-size: 14px; color: rgba(255,255,255,0.80);
+  }
+  #arm-frame.open .seg { display: flex; }
+  #arm-frame.open .seg.active { background: rgba(255,255,255,0.45); color: rgba(255,255,255,0.95); font-weight: 500; }
+  #arm-frame .seg[data-val="tcp"]  { bottom: calc(100% + 42px); }
+  #arm-frame .seg[data-val="base"] { bottom: calc(100% + 8px); }
+
+  /* 两组读数：页面最底部、与左下角 HUD 同一行、居中 */
+  .readout { top: auto; bottom: 24px; display: flex; flex-direction: row; gap: 12px; line-height: 1.4; }
+  #arm-readout-l { left: 50%; transform: translateX(calc(-100% - 8px)); }
+  #arm-readout-r { left: 50%; transform: translateX(8px); }
+
+  /* —— 手柄关闭：左右边距对齐 48px —— */
+  .rail-tools {
+    left: 48px; right: 48px; top: auto; bottom: 33px;
+    flex-direction: row; justify-content: space-between; gap: 0;
+  }
+  .rail-group, .rail-group.system {
+    flex-direction: row; width: auto; height: 52px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    padding: 1px;
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    box-sizing: border-box;
+    transform: scale(calc(1 / var(--stage-scale)));
+  }
+  .rail-group {
+    transform-origin: bottom left;
+  }
+  .rail-group.system {
+    transform-origin: bottom right;
+  }
+  .rail-btn.tool {
+    width: 48px; height: 100%;
+    border-radius: 8px;
+    font-size: 10px; gap: 2px;
+  }
+  .rail-btn.tool .material-symbols-outlined { font-size: 20px; color: rgba(255, 255, 255, 0.6); }
+  .rail-btn.tool.active::before,
+  .rail-btn.tool:not(.disabled):active::before {
+    border-radius: 6px;
+  }
+
+  /* ===== 手机端弹窗：满高右侧面板（设计稿 344:6910 Job / 7905 标定 / 8730 反馈）===== */
+  .side-panel {
+    top: 0; height: 100%; max-height: none;
+    border-radius: 0; background: rgba(0, 0, 0, 0.90);
+  }
+
+  /* —— Job：左栏 Recipe/示例图 + 右栏 5 个竖排按钮 —— */
+  #panel-job {
+    right: 0; width: 652px; height: 100%;
+    flex-direction: row; flex-wrap: wrap;
+    align-content: flex-start; column-gap: 27px;
+    padding: 0 47px 0 32px;
+  }
+  #panel-job .sp-head { width: 100%; padding: 33px 0 22px; }
+  #panel-job .sp-body { flex: 0 0 265px; padding: 0; overflow: visible; }
+  #panel-job .sp-sub { font-size: 16px; }
+  #panel-job .field { margin-top: 18px; height: 45px; }
+  #panel-job .record-box { margin-top: 16px; height: 295px; flex: none; }
+  #panel-job .job-foot { display: none; }
+  #panel-job .job-foot-m {
+    display: flex; flex-direction: column; gap: 17px;
+    flex: 0 0 265px; padding-top: 9px;
+  }
+
+  /* —— 标定：左栏列表 + 右栏左手/右手卡片（绝对定位到右列）—— */
+  #panel-calib { right: 0; width: 647px; height: 100%; }
+  #panel-calib .sp-body.calib { position: relative; padding: 22px 32px 20px; padding-right: 312px; overflow: visible; }
+  #panel-calib .calib-group-body { position: absolute; top: 14px; right: 32px; width: 263px; padding-bottom: 0; }
+  #panel-calib .hand-card { margin-top: 0; }
+  #panel-calib .hand-card + .hand-card { margin-top: 24px; }
+
+  /* —— 反馈：满高右面板，上传按钮置底 —— */
+  #panel-feedback { right: 0; width: 467px; height: 100%; }
+  #panel-feedback .sp-body { padding: 56px 64px 28px 32px; }
+  #panel-feedback .fb-types { gap: 16px; margin-bottom: 28px; }
+  #panel-feedback .fb-type { width: 113px; height: 36px; font-size: 13px; }
+  #panel-feedback .fb-label { margin-bottom: 16px; }
+  #panel-feedback .fb-textarea { height: 92px; }
+  #panel-feedback .fb-submit { margin-top: auto; height: 43px; font-size: 15px; }
+}
+
+/* =====================================================================
+   手机竖屏（Mobile Portrait）媒体查询适配
+   ===================================================================== */
+#stage.portrait {
+  .side-panel, .side-panel * {
+    box-sizing: border-box;
+  }
+  /* Hiding landscape inline elements */
+  .inline-elements {
+    display: none !important;
+  }
+
+  /* Displaying and styling the dropdown */
+  .topbar-dropdown {
+    display: block;
+    position: relative;
+  }
+  .topbar-dropdown .dropdown-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 9999px;
+    background: rgba(51, 51, 51, 0.55);
+    border: none;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 10px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    white-space: nowrap;
+    box-sizing: border-box;
+  }
+  .topbar-dropdown .dropdown-btn:active {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  .topbar-dropdown .dropdown-btn .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--status-green);
+    display: inline-block;
+  }
+  .topbar-dropdown .dropdown-arrow {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+    transition: transform 0.2s ease;
+  }
+  .topbar-dropdown.open .dropdown-arrow {
+    transform: rotate(180deg);
+  }
+  .topbar-dropdown .dropdown-list {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    position: absolute;
+    left: 0;
+    top: calc(100% + 8px);
+    width: 180px;
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 16px;
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    z-index: 99;
+  }
+  .topbar-dropdown.open .dropdown-list {
+    display: flex;
+  }
+  .topbar-dropdown .dropdown-list .pill {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 10px;
+    width: 100%;
+    justify-content: flex-start;
+    height: auto;
+    cursor: pointer;
+  }
+  .topbar-dropdown .dropdown-list .pill:hover {
+    color: #fff;
+  }
+  .topbar-dropdown .dropdown-list .pill .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--status-green);
+    display: inline-block;
+  }
+  .topbar-dropdown .dropdown-list .pill .material-symbols-outlined {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  /* Topbar positioning */
+  .topbar {
+    left: 24px;
+    right: auto;
+    top: 60px;
+    display: flex;
+    justify-content: flex-start;
+    gap: 8px;
+    height: auto;
+  }
+  .topbar .group.right {
+    gap: 0;
+  }
+  .topbar .pill {
+    height: 26px;
+    padding: 0 10px;
+    font-size: 10px;
+    border-radius: 9999px;
+    gap: 4px;
+    background: rgba(51, 51, 51, 0.55);
+    border: none;
+    color: rgba(255, 255, 255, 0.9);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    box-sizing: border-box;
+  }
+  .topbar .pill .material-symbols-outlined {
+    font-size: 14px;
+  }
+
+  /* Camera window placement */
+  .camera {
+    left: 24px;
+    top: 98px;
+    width: 160px;
+    height: 90px;
+    z-index: 11;
+  }
+  .camera img {
+    pointer-events: none;
+    -webkit-user-drag: none;
+    user-drag: none;
+  }
+
+  /* Right rail buttons vertically stacked */
+  .right-rail {
+    position: absolute;
+    right: 17px;
+    top: 61px;
+    display: flex;
+    flex-direction: row-reverse;     /* 手柄(左) 急停(右)，移到右上角横排（设计稿 1038:1486）*/
+    gap: 12px;
+    z-index: 10;
+    left: auto;
+    transform: none;
+  }
+  .rail-btn {
+    width: 48px;
+    height: 48px;
+    font-size: 10px;
+    border-radius: 10px;
+    gap: 2px;
+    box-sizing: border-box;
+  }
+  .rail-btn .material-symbols-outlined {
+    font-size: 20px;
+  }
+  .rail-btn.handle {
+    background: var(--glass-fill);
+    border: 1px solid var(--glass-border);
+    color: var(--text-2);
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
+  }
+  .rail-btn.handle .material-symbols-outlined {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .rail-btn.handle.active {
+    background: rgba(255, 255, 255, 0.10);
+    color: #fff;
+  }
+  .rail-btn.handle.active .material-symbols-outlined {
+    color: #fff;
+  }
+  .rail-btn.estop {
+    background: var(--estop-red);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+
+  /* 手柄关闭后：工具组分布到页面下方左右两角（设计稿 1038:1486）*/
+  .rail-tools {
+    position: absolute;
+    left: 19px;
+    right: 14px;
+    top: auto;
+    bottom: 48px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 0;
+    z-index: 10;
+    background: none;
+    border: none;
+    padding: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    transform: none;
+  }
+  .rail-group, .rail-group.system {
+    flex-direction: row; width: auto; height: 52px;
+    background: var(--glass-fill);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--rail-radius);
+    padding: 1px;
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
+    box-sizing: border-box;
+    transform: none;
+  }
+  .rail-group.system {
+    padding-top: 1px;
+    margin-top: 0;
+  }
+  .rail-btn.tool {
+    width: 48px;
+    height: 100%;
+    aspect-ratio: auto;
+    border-radius: var(--rail-tool-radius);
+    font-size: var(--rail-tool-font);
+    gap: var(--rail-gap);
+    color: var(--text-2);
+    background: transparent;
+    border: none;
+  }
+  .rail-btn.tool .material-symbols-outlined {
+    font-size: 20px;
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .rail-btn.tool.active::before,
+  .rail-btn.tool:not(.disabled):active::before {
+    border-radius: 6px;
+  }
+  .rail-btn.tool.disabled,
+  .rail-btn.tool.disabled .material-symbols-outlined {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  /* Dialogs overrides for portrait mode to match 0.75x landscape physical sizes */
+  .dlg-overlay {
+    --dlg-width: 262px;
+    --dlg-radius: 10px;
+    --dlg-pad: 15px;
+    --dlg-title-size: 12px;
+  }
+  .dlg {
+    max-height: 300px;
+  }
+  .dlg__header {
+    margin-bottom: 15px;
+  }
+  .dlg__body {
+    gap: 10px;
+    padding-right: 9px;
+  }
+  .dlg__footer {
+    margin-top: 15px;
+  }
+  .btn-close {
+    width: 20px;
+    height: 20px;
+  }
+  .btn-close .material-symbols-outlined {
+    font-size: 12px;
+  }
+  .btn-primary {
+    height: 30px;
+    font-size: 11px;
+  }
+  .btn-text {
+    font-size: 12px;
+    gap: 5px;
+    padding: 2px 2px 4px;
+  }
+  .btn-text .material-symbols-outlined {
+    font-size: 14px;
+  }
+  .btn-chip {
+    font-size: 10px;
+    padding: 2px 3px;
+  }
+  .card {
+    min-height: 30px;
+    padding: 8px 10px;
+    gap: 7px;
+    font-size: 11px;
+    border-radius: 8px;
+  }
+  .dot {
+    width: 11px;
+    height: 11px;
+  }
+  .status-row {
+    gap: 8px;
+    font-size: 11px;
+  }
+  .accordion__head {
+    gap: 5px;
+    font-size: 12px;
+  }
+  .accordion__head .material-symbols-outlined {
+    font-size: 14px;
+  }
+  .accordion__body {
+    gap: 9px;
+    padding: 9px 0 3px 10px;
+  }
+  .accordion__item {
+    gap: 6px;
+    font-size: 11px;
+  }
+  .warn-item {
+    gap: 4px;
+  }
+  .warn-item__head {
+    gap: 5px;
+    font-size: 12px;
+  }
+  .warn-item__desc {
+    font-size: 11px;
+  }
+  .warn-item__time {
+    font-size: 10px;
+  }
+  .footer-note {
+    font-size: 12px;
+  }
+  .switch {
+    width: 28px;
+    height: 16px;
+    padding: 1.5px;
+  }
+  .switch__knob {
+    width: 13px;
+    height: 13px;
+  }
+  .switch.on .switch__knob {
+    transform: translateX(12px);
+  }
+
+  /* Bottom sheet popup styles for side panels */
+  .side-panel {
+    font-size: 10px;
+  }
+  .side-panel .sp-title {
+    font-size: 12px;
+  }
+  .side-panel .sp-sub {
+    font-size: 12px;
+  }
+  .side-panel .sp-close .material-symbols-outlined {
+    font-size: 11px;
+  }
+  .calib-row {
+    font-size: 10px;
+  }
+  .calib-row .chev {
+    font-size: 16px;
+  }
+  .hand-name {
+    font-size: 9px;
+  }
+  .mini-btn {
+    font-size: 8px;
+  }
+  .pt-toggle {
+    font-size: 8px;
+  }
+  .pt-item {
+    font-size: 8px;
+  }
+  .pt-btn {
+    font-size: 9px;
+  }
+  .fb-label {
+    font-size: 9px;
+  }
+  .fb-placeholder {
+    font-size: 9px;
+  }
+
+  /* Bottom sheet popup styles for side panels */
+  .side-panel {
+    position: absolute;
+    left: 0; right: 0; bottom: 0; top: auto;
+    width: 100% !important;
+    height: 75% !important;
+    max-height: 75% !important;
+    border-radius: 24px 24px 0 0;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-bottom: none;
+    background: rgba(10, 10, 12, 0.95);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    display: flex !important;
+    opacity: 1 !important;
+    z-index: 999;
+    pointer-events: none;
+  }
+  .side-panel.active {
+    transform: translateY(0);
+    pointer-events: auto;
+    animation: none !important;
+  }
+  .side-panel .sp-head {
+    padding: 16px 20px 0;
+  }
+  .side-panel .sp-close {
+    width: 28px;
+    height: 28px;
+  }
+  .side-panel .sp-close .material-symbols-outlined {
+    font-size: 18px;
+  }
+  .side-panel .sp-body {
+    padding: 12px 20px;
+  }
+
+  /* Side panels customization for vertical layout */
+  #panel-job {
+    flex-direction: column;
+    padding: 0;
+  }
+  #panel-job .job-foot {
+    display: none !important;
+  }
+  #panel-job .sp-body {
+    flex: 1;
+    width: 100%;
+    margin-bottom: 0;
+    padding: 12px 20px;
+  }
+  #panel-job .job-foot-m {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 12px 20px 20px;
+    width: 100%;
+    box-sizing: border-box;
+    flex: none;
+  }
+  #panel-job .jbtn {
+    width: 100%;
+    height: 38px;
+    font-size: 11px;
+    margin: 0;
+  }
+
+  #panel-calib .sp-body.calib {
+    padding: 12px 20px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    box-sizing: border-box;
+    height: calc(100% - 50px);
+  }
+  #panel-calib .calib-group-body {
+    position: static;
+    width: 100%;
+    margin-top: 12px;
+    padding-bottom: 16px;
+  }
+  #panel-calib .hand-card {
+    margin-top: 12px;
+  }
+
+  #panel-feedback .sp-body {
+    padding: 12px 20px 20px;
+    box-sizing: border-box;
+    height: calc(100% - 50px);
+  }
+  #panel-feedback .fb-types {
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  #panel-feedback .fb-type {
+    flex: 1;
+    height: 34px;
+    font-size: 10px;
+  }
+  #panel-feedback .fb-textarea {
+    height: 100px;
+  }
+  #panel-feedback .fb-submit {
+    margin-top: 16px;
+    height: 32px;
+    font-size: 11px;
+  }
+
+  /* Reset position of Reset button in portrait */
+  .reset {
+    right: 30px;
+    bottom: 380px;
+    top: auto;
+    transform: scale(calc(1 / var(--stage-scale)));
+    transform-origin: bottom right;
+  }
+  .reset .circle.knob {
+    width: 40px;
+    height: 40px;
+  }
+  .reset .circle.knob .material-symbols-outlined {
+    font-size: 18px;
+  }
+  .reset .label {
+    font-size: 10px;
+    margin-top: 4px;
+  }
+
+  /* Controls layout for mobile portrait when handle is ON */
+  /* Chassis Mode */
+  #move-mount {
+    left: 24px;
+    bottom: 120px;
+    top: auto;
+  }
+  #arc-chassis-rotate, #arc-waist-yaw {
+    right: 24px;
+    bottom: 120px;
+    top: auto;
+  }
+
+  /* Torso Mode */
+  #arc-waist-pitch {
+    left: 24px;
+    bottom: 240px;
+    top: auto;
+  }
+  #arc-head-pitch {
+    left: 24px;
+    bottom: 90px;
+    top: auto;
+  }
+  .vslider-mount {
+    right: 180px;
+    bottom: 120px;
+    top: auto;
+  }
+
+  /* Arm Mode */
+  #dial-arm-z {
+    left: 24px;
+    bottom: 240px;
+    top: auto;
+  }
+  #cross-arm-xy {
+    left: 24px;
+    bottom: 90px;
+    top: auto;
+  }
+  #dial-arm-rz {
+    right: 24px;
+    bottom: 240px;
+    top: auto;
+  }
+  #cross-arm-rxy {
+    right: 24px;
+    bottom: 90px;
+    top: auto;
+  }
+  .arm-center {
+    position: absolute;
+    left: 50%;
+    bottom: 120px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    z-index: 6;
+    width: auto;
+    height: auto;
+    top: auto;
+  }
+  #arm-side {
+    position: relative;
+    left: auto;
+    right: auto;
+    transform: none;
+    margin-bottom: 0;
+    top: auto;
+  }
+  #arm-frame {
+    position: relative;
+    left: auto;
+    bottom: auto;
+    transform: none;
+    top: auto;
+  }
+
+  .readout {
+    top: auto;
+    bottom: auto;
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    line-height: 1.4;
+  }
+  #arm-readout-l {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 340px;
+    text-align: center;
+  }
+  #arm-readout-r {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 300px;
+    text-align: center;
+  }
+
+  /* Gripper Mode */
+  #dial-grip-left {
+    left: 24px;
+    bottom: 120px;
+    top: auto;
+  }
+  #dial-grip-right {
+    right: 24px;
+    bottom: 120px;
+    top: auto;
+  }
+
+  /* Mode selector and HUD positioning */
+  .hud {
+    left: 24px;
+    bottom: 24px;
+  }
+  .mode-data {
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .mode-selector {
+    left: 50%;
+    transform: translate(-50%, 0);
+    top: auto;
+    bottom: 40px;
+  }
+  .wheel-picker {
+    top: auto;
+    bottom: 40px;
+  }
+}

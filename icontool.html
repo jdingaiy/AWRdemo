@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<style>html,body{margin:0;padding:0;background:#ff00ff;overflow:hidden}#c{width:256px;height:256px}</style>
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three.module.js",
+  "three/examples/jsm/loaders/STLLoader.js": "./vendor/STLLoader.js"
+}}
+</script>
+</head>
+<body>
+<div id="c"></div>
+<script type="module">
+import * as THREE from 'three';
+import URDFLoader from './vendor/URDFLoader.js';
+
+const ROOT = './assets/robot/10000111A01/10000111A01';
+const PARTS = {
+  chassis: ['base_link','left_front_wheel_link','right_front_wheel_link','rear_wheel_link'],
+  torso:   ['waist_lift_link','waist_pitch_link','waist_yaw_link'],
+  arm:     ['left_arm_base_link','left_shoulder_pitch_link','left_shoulder_roll_link','left_shoulder_yaw_link','left_elbow_link','left_wrist_yaw_link','left_wrist_pitch_link','left_wrist_roll_link'],
+  gripper: ['left_wrist_pitch_link','left_wrist_roll_link','left_arm_ee_link'],
+};
+const part = new URLSearchParams(location.search).get('part') || 'chassis';
+const linkSet = new Set(PARTS[part] || PARTS.chassis);
+
+const el = document.getElementById('c');
+const W = 256, H = 256;
+const scene = new THREE.Scene();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(2);
+renderer.setSize(W, H);
+renderer.setClearColor(0xff00ff, 1);
+el.appendChild(renderer.domElement);
+const camera = new THREE.PerspectiveCamera(32, 1, 0.001, 100);
+scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+const k = new THREE.DirectionalLight(0xffffff, 1.15); k.position.set(2, 4, 3); scene.add(k);
+const f = new THREE.DirectionalLight(0xccddff, 0.45); f.position.set(-3, 2, -2); scene.add(f);
+
+let robot = null, applied = false;
+const loader = new URDFLoader();
+loader.packages = { '10000111A01': ROOT, '10000111-A-A11.SLDASM': ROOT };
+loader.load(ROOT + '/urdf/10000111A01.urdf', (r) => {
+  robot = r;
+  robot.rotation.x = -Math.PI / 2;
+  const pivot = new THREE.Group(); pivot.add(robot);
+  robot.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), Math.PI + Math.PI / 2);
+  scene.add(pivot);
+});
+
+function ownerLink(mesh) {
+  let n = mesh;
+  while (n) { if (n.isURDFLink) return n.name; n = n.parent; }
+  return null;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (!robot) { renderer.render(scene, camera); return; }
+  const box = new THREE.Box3(); let any = false;
+  robot.updateMatrixWorld(true);
+  robot.traverse((c) => {
+    if (!c.isMesh) return;
+    if (!c.material || !c.material.__set) {
+      c.material = new THREE.MeshStandardMaterial({ color: 0xc9cace, roughness: 0.6, metalness: 0.15 });
+      c.material.__set = true;
+    }
+    const own = ownerLink(c);
+    const show = linkSet.has(own);
+    c.visible = show;
+    if (show && c.geometry) {
+      c.geometry.computeBoundingBox();
+      box.union(c.geometry.boundingBox.clone().applyMatrix4(c.matrixWorld));
+      any = true;
+    }
+  });
+  if (any && !box.isEmpty()) {
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const maxd = Math.max(size.x, size.y, size.z);
+    const dist = (maxd / (2 * Math.tan(camera.fov * Math.PI / 360))) * 1.35;
+    const dir = new THREE.Vector3(0.55, 0.28, -1).normalize();   // 正前方偏上的 3/4 视角
+    camera.position.copy(center).addScaledVector(dir, dist);
+    camera.lookAt(center);
+  }
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

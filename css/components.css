@@ -1,0 +1,290 @@
+/* =====================================================================
+   可复用组件样式 —— 弹窗及内部元件。
+   配合 tokens.css（变量）与 components.js（DOM 工厂）。
+   改组件外观只动这里 + tokens.css。
+   ===================================================================== */
+
+/* ---------- 弹窗遮罩（磨砂玻璃背景）+ 居中 ---------- */
+.dlg-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: var(--overlay-bg);   /* 仅压暗，不模糊 */
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.dlg-overlay.show { opacity: 1; }
+
+/* ---------- 弹窗面板（真实 1× 尺寸：宽 340 固定，高自适应、max 400 滚动）---------- */
+.dlg {
+  display: flex;
+  flex-direction: column;
+  width: var(--dlg-width);
+  max-width: 92%;
+  max-height: var(--dlg-max-height);
+  background: var(--dlg-bg);                          /* 黑色磨砂玻璃 */
+  -webkit-backdrop-filter: blur(var(--dlg-blur)) saturate(1.2);
+  backdrop-filter: blur(var(--dlg-blur)) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--dlg-radius);
+  padding: var(--dlg-pad);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  transform: scale(0.96);
+  transition: transform .22s cubic-bezier(.22, 1, .36, 1);
+}
+.dlg-overlay.show .dlg { transform: scale(1); }
+
+.dlg__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;   /* 标题/关闭 ↔ 内容 间距 20px */
+  flex: 0 0 auto;
+}
+.dlg__title {
+  font-family: var(--font);
+  font-size: var(--dlg-title-size);
+  font-weight: 450;
+  color: var(--text-1);
+  letter-spacing: .5px;
+}
+.dlg__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* 固定右边距给滚动条让位（iOS Safari 不支持 scrollbar-gutter，用 padding 兜底，
+     保证文字永远不被滚动条覆盖） */
+  padding-right: 12px;
+}
+.dlg__footer {
+  flex: 0 0 auto;
+  margin-top: 20px;   /* 内容 ↔ 底部 间距 20px */
+}
+
+/* ---------- 关闭按钮（圆形灰底 + 白 X）---------- */
+.btn-close {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--close-bg);
+  border: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--text-1);
+  transition: background .15s ease;
+}
+.btn-close:hover { background: rgba(140, 140, 148, 0.6); }
+.btn-close .material-symbols-outlined { font-size: 16px; }
+.btn-close--sm { width: 22px; height: 22px; }
+.btn-close--sm .material-symbols-outlined { font-size: 14px; }
+
+/* ---------- 分隔线 / 下划线 ---------- */
+.divider {
+  height: 1px;
+  background: var(--divider);
+  border: none;
+  width: 100%;
+}
+
+/* ---------- 主按钮（蓝色实心 pill）---------- */
+.btn-primary {
+  width: 100%;
+  height: 40px;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent-blue);
+  color: #F3F3F4;
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 380;
+  cursor: pointer;
+  transition: filter .15s ease;
+}
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-primary:active { filter: brightness(0.92); }
+
+/* ---------- 文字按钮（图标 + 文字 + 下划线，如「一键清除」）---------- */
+.btn-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--text-1);
+  padding: 2px 2px 5px;
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: 16px;
+  font-weight: 380;
+  cursor: pointer;
+}
+.btn-text .material-symbols-outlined { font-size: 18px; }
+
+/* ---------- 灰色文字 link 按钮（如故障项「清除」）---------- */
+.btn-chip {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 380;
+  cursor: pointer;
+  transition: color .15s ease;
+}
+.btn-chip:hover { color: var(--text-1); }
+.btn-chip:active { color: var(--text-3); }
+
+/* ---------- 开关（iOS 风格）---------- */
+.switch {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 21px;
+  border-radius: 100px;
+  background: var(--switch-off);
+  padding: 2px;
+  cursor: pointer;
+  transition: background .2s ease;
+}
+.switch__knob {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translateX(0);
+  transition: transform .2s cubic-bezier(.4, 0, .2, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.switch.on { background: var(--accent-blue); }
+.switch.on .switch__knob { transform: translateX(17px); }
+
+/* ---------- 状态点 ---------- */
+.dot {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--dot-green);
+}
+
+/* ---------- 卡片（列表项，高度 hug 内容：单行≈40，多行自动撑高）---------- */
+.card {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 14px;          /* 竖向 padding → 容器随内容增高 */
+  border-radius: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: 15px;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;     /* 长数字串可换行，不溢出 */
+}
+.card .bullet { flex: 0 0 auto; align-self: flex-start; line-height: 1.5; color: var(--text-1); }
+
+/* ---------- 下拉 / 折叠分组 ---------- */
+.accordion__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: 16px;
+  user-select: none;
+}
+.accordion__head .material-symbols-outlined {
+  font-size: 18px;
+  transition: transform .2s ease;
+}
+.accordion.collapsed .accordion__head .material-symbols-outlined { transform: rotate(180deg); }
+.accordion__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0 4px 14px;
+  overflow: hidden;
+}
+.accordion.collapsed .accordion__body { display: none; }
+.accordion__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 15px;
+}
+.accordion__item .bullet { color: var(--text-2); }
+.accordion__item .spacer { flex: 1; }
+
+/* ---------- 连接状态行（点 + 标签 + 开关）---------- */
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: 14px;
+}
+.status-row .spacer { flex: 1; }
+
+/* ---------- 故障警告项 ---------- */
+.warn-item { display: flex; flex-direction: column; gap: 5px; }
+.warn-item__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font);
+  font-size: 16px;
+  font-weight: 600;
+}
+.warn-item__head .spacer { flex: 1; }
+.warn-item__desc { font-family: var(--font); font-size: 14px; color: var(--text-1); }
+.warn-item__time { font-family: var(--font); font-size: 13px; color: var(--text-2); }
+.sev--error { color: var(--sev-error); }
+.sev--warn { color: var(--sev-warn); }
+
+/* ---------- 底部说明文字（总数）---------- */
+.footer-note {
+  font-family: var(--font);
+  font-size: 16px;
+  font-weight: 380;
+  color: var(--text-1);
+  text-align: right;
+}
+
+/* ---------- 滚动条 ----------
+   iOS Safari 的原生 overlay 滚动条会浮在内容上（盖文字）且无法用 ::-webkit-scrollbar 控制，
+   因此：①隐藏所有平台的原生滚动条；②用自绘 .dlg__scrollbar 放在 padding-right 留出的槽位里。 */
+.dlg__body {
+  scrollbar-width: none;            /* Firefox */
+  -ms-overflow-style: none;         /* 旧 Edge */
+}
+.dlg__body::-webkit-scrollbar { width: 0; height: 0; display: none; }  /* WebKit/Blink */
+
+/* 自绘滚动条（绝对定位于面板右内边，落在 body 的 padding 槽内，绝不压内容） */
+.dlg { position: relative; }   /* 作为自绘滚动条定位锚点（已有 flex，补 relative） */
+.dlg__scrollbar {
+  position: absolute;
+  top: 0; right: 6px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--scroll-thumb);
+  opacity: 0;
+  transition: opacity .25s ease;
+  pointer-events: none;
+}
+.dlg__scrollbar.visible { opacity: 1; }
+

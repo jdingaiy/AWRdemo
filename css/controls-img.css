@@ -1,0 +1,11 @@
+/* 图像底图版控件样式（底盘移动 / 底盘旋转） */
+.imgpad { position: absolute; touch-action: none; }
+.imgpad__bg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.imgpad__knob { z-index: 3; }
+
+.imgdial { position: absolute; touch-action: none; }
+.imgdial__bg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+.imgdial__knob { z-index: 3; }
+
+/* 这两类控件的旋钮绝对定位（在各自控件盒内） */
+.imgpad > .imgpad__knob, .imgdial > .imgdial__knob { position: absolute; }

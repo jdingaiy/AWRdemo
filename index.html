@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- 全屏：添加到主屏幕后以独立应用方式启动（无浏览器地址栏） -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="AWR" />
+  <meta name="theme-color" content="#131418" />
+  <title>AWR 遥操作屏幕 · Figma 还原</title>
+  <link rel="stylesheet" href="./css/tokens.css?v=2" />
+  <link rel="stylesheet" href="./css/screen.css?v=2" />
+  <link rel="stylesheet" href="./css/components.css?v=2" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.js",
+      "three/examples/jsm/loaders/STLLoader.js": "./vendor/STLLoader.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="viewport">
+    <div id="stage">
+      <!-- 背景场景：3D 机器人 -->
+      <div class="bg-robot" id="robot-view"></div>
+
+      <!-- 顶部状态/操作栏 -->
+      <div class="topbar">
+        <!-- 竖屏下的下拉菜单 -->
+        <div class="topbar-dropdown" id="topbar-menu">
+          <div class="dropdown-btn">
+            <span class="dot active"></span>
+            控制面板
+            <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
+          </div>
+          <div class="dropdown-list">
+            <span class="pill"><i class="dot"></i>连接</span>
+            <span class="pill"><i class="dot"></i>传感器</span>
+            <span class="pill"><span class="material-symbols-outlined">radio_button_checked</span>录制</span>
+            <span class="pill"><span class="material-symbols-outlined">warning</span>故障</span>
+            <span class="pill"><span class="material-symbols-outlined">format_list_bulleted</span>反馈列表</span>
+          </div>
+        </div>
+
+        <div class="group inline-elements">
+          <span class="pill"><i class="dot"></i>连接</span>
+          <span class="pill"><i class="dot"></i>传感器</span>
+        </div>
+        <div class="group right">
+          <span class="pill"><span class="material-symbols-outlined">photo_camera</span>摄像头</span>
+          <div class="cluster inline-elements">
+            <span class="pill"><span class="material-symbols-outlined">radio_button_checked</span>录制</span>
+            <span class="pill"><span class="material-symbols-outlined">warning</span>故障</span>
+            <span class="pill"><span class="material-symbols-outlined">format_list_bulleted</span>反馈列表</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 相机画中画 -->
+      <div class="camera">
+        <img src="./assets/img-b36a780a.png" alt="camera feed" />
+        <div class="close" title="关闭">
+          <span class="material-symbols-outlined">close</span>
+        </div>
+      </div>
+
+      <!-- 右上：急停 / 手柄（手机端横向，平板端竖排） -->
+      <div class="right-rail">
+        <div class="rail-btn estop" title="急停">
+          <span class="material-symbols-outlined fill">power_settings_new</span>
+          急停
+        </div>
+        <div class="rail-btn handle" title="手柄">
+          <span class="material-symbols-outlined">joystick</span>
+          手柄
+        </div>
+      </div>
+
+      <!-- 手柄关闭后出现的控制设置（默认隐藏；平板=右栏竖排，手机=底部左右角） -->
+      <div class="rail-tools">
+        <div class="rail-group">
+          <div class="rail-btn tool" data-panel="job" title="Job">
+            <span class="material-symbols-outlined">touch_app</span>Job
+          </div>
+          <div class="rail-btn tool" data-panel="calib" title="标定">
+            <span class="material-symbols-outlined">center_focus_weak</span>标定
+          </div>
+          <div class="rail-btn tool" data-panel="feedback" title="反馈">
+            <span class="material-symbols-outlined">info</span>反馈
+          </div>
+        </div>
+        <div class="rail-group system">
+          <div class="rail-btn tool disabled" title="设置">
+            <span class="material-symbols-outlined">settings</span>设置
+          </div>
+          <div class="rail-btn tool disabled" title="退出">
+            <span class="material-symbols-outlined">logout</span>退出
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 手柄关闭后的侧边控制面板（默认隐藏） ============ -->
+
+      <!-- Job 面板（设计稿 344:5089） -->
+      <div class="side-panel" id="panel-job">
+        <div class="sp-head">
+          <span class="sp-title">Job</span>
+          <div class="sp-close"><span class="material-symbols-outlined">close</span></div>
+        </div>
+        <div class="sp-body">
+          <div class="sp-sub">当前Recipe:</div>
+          <div class="field">测试123456</div>
+          <div class="record-box">
+            <div class="record-head"><span class="material-symbols-outlined chev up">expand_more</span>录制图</div>
+          </div>
+        </div>
+        <div class="job-foot">
+          <div class="seg-line">
+            <div class="seg-pill"><span class="seg dim">Start</span><span class="seg">Stop</span></div>
+            <div class="seg-pill solo"><span class="seg">Reset</span></div>
+          </div>
+          <div class="seg-pill"><span class="seg dim">Pause</span><span class="seg">Continue</span></div>
+        </div>
+        <!-- 手机端：右栏竖排按钮（设计稿 344:6910） -->
+        <div class="job-foot-m">
+          <div class="jbtn">Start</div>
+          <div class="jbtn">Pause</div>
+          <div class="jbtn">Continue</div>
+          <div class="jbtn">Reset</div>
+          <div class="jbtn grey">Stop</div>
+        </div>
+      </div>
+
+      <!-- 标定 面板（设计稿 344:5605） -->
+      <div class="side-panel" id="panel-calib">
+        <div class="sp-head">
+          <span class="sp-title">自动化标定</span>
+          <div class="sp-close"><span class="material-symbols-outlined">close</span></div>
+        </div>
+        <div class="sp-body calib">
+          <div class="calib-row"><span>鱼眼双目</span><span class="material-symbols-outlined chev">expand_more</span></div>
+          <div class="calib-row"><span>鱼眼手眼</span><span class="material-symbols-outlined chev">expand_more</span></div>
+          <div class="calib-row"><span>内窥镜双目</span><span class="material-symbols-outlined chev">expand_more</span></div>
+          <div class="calib-group open">
+            <div class="calib-row group-head"><span>鱼眼左目到内窥镜左目</span><span class="material-symbols-outlined chev up">expand_more</span></div>
+            <div class="calib-group-body">
+              <!-- 左手（点位收起） -->
+              <div class="hand-card collapsed">
+                <div class="hand-head">
+                  <span class="hand-name">左手</span>
+                  <div class="hand-btns"><span class="mini-btn">计算</span><span class="mini-btn">新增点位</span></div>
+                </div>
+                <div class="hand-divider"></div>
+                <div class="pt-list">
+                  <div class="pt-item">1</div>
+                  <div class="pt-row">
+                    <span class="pt-btn blue">同步</span>
+                    <span class="pt-btn blue">移动</span>
+                  </div>
+                  <div class="pt-btn grey">删除</div>
+                </div>
+                <div class="pt-toggle expand">展开点位 <span class="material-symbols-outlined">add</span></div>
+                <div class="pt-toggle collapse">收起点位 <span class="material-symbols-outlined">remove</span></div>
+              </div>
+              <!-- 右手（点位展开） -->
+              <div class="hand-card">
+                <div class="hand-head">
+                  <span class="hand-name">右手</span>
+                  <div class="hand-btns"><span class="mini-btn">计算</span><span class="mini-btn">新增点位</span></div>
+                </div>
+                <div class="hand-divider"></div>
+                <div class="pt-list">
+                  <div class="pt-item">1</div>
+                  <div class="pt-row">
+                    <span class="pt-btn blue">同步</span>
+                    <span class="pt-btn blue">移动</span>
+                  </div>
+                  <div class="pt-btn grey">删除</div>
+                </div>
+                <div class="pt-toggle expand">展开点位 <span class="material-symbols-outlined">add</span></div>
+                <div class="pt-toggle collapse">收起点位 <span class="material-symbols-outlined">remove</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 反馈 面板（设计稿 344:8327） -->
+      <div class="side-panel" id="panel-feedback">
+        <div class="sp-head">
+          <span class="sp-title">问题反馈</span>
+          <div class="sp-close"><span class="material-symbols-outlined">close</span></div>
+        </div>
+        <div class="sp-body">
+          <div class="fb-label">标记类型：</div>
+          <div class="fb-types">
+            <span class="fb-type" data-sev="normal">一般</span>
+            <span class="fb-type active" data-sev="severe">严重</span>
+            <span class="fb-type" data-sev="fatal">致命</span>
+          </div>
+          <div class="fb-label">问题描述：</div>
+          <div class="fb-textarea">
+            <div class="fb-placeholder">请使用输入法/语音输入......</div>
+            <div class="fb-mic"><span class="material-symbols-outlined">mic</span></div>
+          </div>
+          <div class="fb-submit">问题上传</div>
+        </div>
+      </div>
+
+      <!-- 复位 -->
+      <div class="reset" id="reset">
+        <div class="circle knob">
+          <span class="material-symbols-outlined">refresh</span>
+        </div>
+        <span class="label">复位</span>
+      </div>
+
+      <!-- ============ 四个模式的控件面板（按模式显隐） ============ -->
+      <div id="mode-panels">
+
+        <!-- 底盘：Move 摇杆（平移）+ 底盘旋转弧 -->
+        <div class="mode-panel" data-mode="chassis">
+          <div id="move-mount"></div>
+          <div class="arc-mount" id="arc-chassis-rotate"
+               data-label="R" data-pos="right-lower"></div>
+        </div>
+
+        <!-- 躯干：头部俯仰 / 腰部俯仰 / 腰部升降 / 腰部旋转 -->
+        <div class="mode-panel" data-mode="torso">
+          <div class="arc-mount" id="arc-waist-pitch"
+               data-label="腰" data-pos="left-upper" data-axis="v"></div>
+          <div class="arc-mount" id="arc-head-pitch"
+               data-label="头" data-pos="left-lower" data-axis="v"></div>
+          <div class="vslider-mount" id="vslider-lift" data-label="Z"></div>
+          <div class="arc-mount" id="arc-waist-yaw"
+               data-label="R" data-pos="right-lower"></div>
+        </div>
+
+        <!-- 手臂：Z弧 + XY十字 / 左右臂·坐标系 / 读数 / Rz弧 + Rxy十字 -->
+        <div class="mode-panel" data-mode="arm">
+          <div class="arc-dial" id="dial-arm-z" data-label="Z"></div>
+          <div class="cross-pad" id="cross-arm-xy" data-label="XY"></div>
+
+          <div class="arm-center">
+            <div class="seg-toggle wheel-picker" id="arm-side">
+              <div class="picker-ring"></div>
+              <div class="seg-track picker-track">
+                <div class="seg picker-opt active" data-val="left">左臂</div>
+                <div class="seg picker-opt" data-val="right">右臂</div>
+              </div>
+            </div>
+            <div class="seg-toggle wide" id="arm-frame">
+              <div class="frame-btn"><span class="frame-val">TCP坐标系</span><span class="material-symbols-outlined frame-chev">expand_more</span></div>
+              <div class="seg active" data-val="tcp">TCP坐标系</div>
+              <div class="seg" data-val="base">基础坐标系</div>
+            </div>
+          </div>
+
+          <div class="readout" id="arm-readout-l">
+            <div>x: <b id="ro-x">-10.12</b>mm</div>
+            <div>y: <b id="ro-y">-10.12</b>mm</div>
+            <div>z: <b id="ro-z">-10.12</b>mm</div>
+          </div>
+          <div class="readout" id="arm-readout-r">
+            <div>Rx: <b id="ro-rx">-10.12</b>mm</div>
+            <div>Ry: <b id="ro-ry">-10.12</b>mm</div>
+            <div>Rz: <b id="ro-rz">-10.12</b>mm</div>
+          </div>
+
+          <div class="arc-dial" id="dial-arm-rz" data-label="Rz"></div>
+          <div class="cross-pad" id="cross-arm-rxy" data-label="Rxy"></div>
+        </div>
+
+        <!-- 夹爪：左右开合弧 -->
+        <div class="mode-panel" data-mode="gripper">
+          <div class="arc-dial" id="dial-grip-left" data-label="L"></div>
+          <div class="arc-dial" id="dial-grip-right" data-label="R"></div>
+        </div>
+      </div>
+
+      <!-- 底部模式选择器：底盘 / 躯干 / 手臂 / 夹爪
+           平板=固定药丸四选；手机=收起单圆 + 长按拖动卡尺选择（Figma 970:4274/4148） -->
+      <div class="mode-selector wheel-picker" id="mode-selector">
+        <div class="picker-ring"></div>
+        <div class="pillbox picker-track">
+          <div class="opt picker-opt active" data-mode="chassis"><img src="./assets/icon-chassis.png" alt="底盘" /><span class="opt-label">底盘</span></div>
+          <div class="opt picker-opt" data-mode="torso"><img src="./assets/icon-torso.png" alt="躯干" /><span class="opt-label">躯干</span></div>
+          <div class="opt picker-opt" data-mode="arm"><img src="./assets/icon-arm.png" alt="手臂" /><span class="opt-label">手臂</span></div>
+          <div class="opt picker-opt" data-mode="gripper"><img src="./assets/icon-gripper.png" alt="夹爪" /><span class="opt-label">夹爪</span></div>
+        </div>
+        <div class="labels"><span>底盘</span><span>躯干</span><span>手臂</span><span>夹爪</span></div>
+      </div>
+
+      <!-- 实时输出 HUD（左下角：模式标签） -->
+      <div class="hud" id="hud">
+        <span id="hud-text">模式 <b id="hud-mode">底盘</b></span>
+      </div>
+      <!-- 底部居中：当前模式的实时数据（手臂模式用上方 .readout，其余模式用此） -->
+      <div class="mode-data" id="mode-data"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/app.js?v=2"></script>
+</body>
+</html>

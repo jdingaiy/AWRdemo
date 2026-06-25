@@ -1,0 +1,15 @@
+# 备份/临时文件
+*.bak
+*.bak2
+*.bak3
+
+# 非站点资源（源码归档 / 日志）
+*.rar
+*.log
+
+# 本地服务（GitHub Pages 不需要）
+server.js
+
+# 系统
+.DS_Store
+Thumbs.db
